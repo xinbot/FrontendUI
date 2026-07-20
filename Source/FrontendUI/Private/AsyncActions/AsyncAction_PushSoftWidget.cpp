@@ -1,7 +1,8 @@
 // Yum All Rights Reserved
 
-
 #include "AsyncActions/AsyncAction_PushSoftWidget.h"
+#include "Subsystems/FrontendUISubsystem.h"
+#include "Widgets/Widget_ActivatableBase.h"
 
 UAsyncAction_PushSoftWidget* UAsyncAction_PushSoftWidget::PushSoftWidget(const UObject* WorldContextObject, APlayerController* OwningPlayerController, TSoftClassPtr<UWidget_ActivatableBase> InSoftWidgetClass, UPARAM(meta = (Categories = "Frontend.WidgetStack")) FGameplayTag InWidgetStackTag, bool bFocusOnNewlyPushedWidget)
 {
@@ -12,6 +13,11 @@ UAsyncAction_PushSoftWidget* UAsyncAction_PushSoftWidget::PushSoftWidget(const U
 		if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
 		{
 			UAsyncAction_PushSoftWidget* Node = NewObject<UAsyncAction_PushSoftWidget>();
+			Node->CachedOwningWorld = World;
+			Node->CachedOwningPC = OwningPlayerController;
+			Node->CachedSoftWidgetClass = InSoftWidgetClass;
+			Node->CachedWidgetStackTag = InWidgetStackTag;
+			Node->bCachedFocusOnNewlyPushedWidget = bFocusOnNewlyPushedWidget;
 
 			Node->RegisterWithGameInstance(World);
 
@@ -20,4 +26,44 @@ UAsyncAction_PushSoftWidget* UAsyncAction_PushSoftWidget::PushSoftWidget(const U
 	}
 
 	return nullptr;
+}
+
+void UAsyncAction_PushSoftWidget::Activate()
+{
+	UFrontendUISubsystem* FrontendUISubsystem = UFrontendUISubsystem::Get(CachedOwningWorld.Get());
+
+	FrontendUISubsystem->PushSoftWidgetToStackAsync(CachedWidgetStackTag, CachedSoftWidgetClass, 
+		[this](EAsyncPushWidgetState InPushState, UWidget_ActivatableBase* PushedWidget)
+		{
+			switch (InPushState)
+			{
+			case EAsyncPushWidgetState::OnCreatedBeforePush:
+				PushedWidget->SetOwningPlayer(CachedOwningPC.Get());
+
+				OnWidgetCreatedBeforePush.Broadcast(PushedWidget);
+
+				break;
+
+			case EAsyncPushWidgetState::AfterPush:
+
+				OnWidgetCreatedAfterPush.Broadcast(PushedWidget);
+
+				if (bCachedFocusOnNewlyPushedWidget)
+				{
+					if (UWidget* WidgetToFocus = PushedWidget->GetDesiredFocusWidget())
+					{
+						WidgetToFocus->SetFocus();
+					}
+				}
+
+				SetReadyToDestroy();
+
+				break;
+
+			default:
+
+				break;
+			}
+		}
+	);
 }
