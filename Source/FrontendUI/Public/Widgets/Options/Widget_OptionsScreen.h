@@ -4,11 +4,14 @@
 
 #include "CoreMinimal.h"
 #include "Widgets/Widget_ActivatableBase.h"
+#include "FrontendTypes/FrontendEnumTypes.h"
 #include "Widget_OptionsScreen.generated.h"
 
 class UOptionsDataRegistry;
 class UFrontendTabListWidgetBase;
 class UFrontendCommonListView;
+class UWidget_OptionsDetailsView;
+class UListDataObject_Base;
 /**
  * 
  */
@@ -26,6 +29,8 @@ protected:
 	virtual void NativeOnActivated() override;
 
 	virtual void NativeOnDeactivated() override;
+
+	virtual UWidget* NativeGetDesiredFocusTarget() const override;
 	// ~ End UCommonActivatableWidget Interface
 
 private:
@@ -36,8 +41,16 @@ private:
 
 	void OnBackBoundActionTriggered();
 
+	FString TryGetEntryWidgetClassName(UObject* InOwningListItem) const;
+
+	void OnListViewListDataModified(UListDataObject_Base* ModifiedData, EOptionsListDataModifyReason ModifyReason);
+
 	UFUNCTION()
 	void OnOptionsTabSelected(FName TabId);
+
+	void OnListViewItemHovered(UObject* InHoveredItem, bool bWasHovered);
+
+	void OnListViewItemSelected(UObject* InSelectedItem);
 
 	// *** Bound Widgets *** //
 	UPROPERTY(meta = (BindWidget))
@@ -45,6 +58,9 @@ private:
 
 	UPROPERTY(meta = (BindWidget))
 	UFrontendCommonListView* CommonListView_OptionsList;
+
+	UPROPERTY(meta = (BindWidget))
+	UWidget_OptionsDetailsView* DetailsView_ListEntryInfo;
 	// *** Bound Widgets *** //
 
 	// Handle the creation of data in the options screen. Direct access to this variable is forbidden
@@ -55,4 +71,9 @@ private:
 	FDataTableRowHandle ResetAction;
 
 	FUIActionBindingHandle ResetActionHandle;
+
+	UPROPERTY(Transient)
+	TArray<UListDataObject_Base*> ResettableDataArray;
+
+	bool bIsResetingData = false;
 };
